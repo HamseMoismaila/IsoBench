@@ -32,29 +32,29 @@ IsoBench solves this via a **Counterfactual Dataset**:
 
 ## 🏗️ The 4-Arm Architectural Ablation
 
-IsoBench evaluates identical questions across four distinct agentic paradigms. This ablation study proves exactly where and how errors propagate through an agentic pipeline.
+IsoBench evaluates identical questions across four distinct agentic paradigms. This diagram explicitly highlights **Context Isolation**—showing whether downstream agents can see the "raw thoughts" of previous agents, or if they are blinded and only see extracted claims.
 
 ```mermaid
 graph TD
-    subgraph B0: Shared Baseline
-        P0[Planner] -- "Raw Trace" --> V0[Verifier]
-        V0 -- "Raw Trace" --> E0[Executor]
+    subgraph B0: Shared Baseline (No Isolation)
+        P0[Planner] -- "Sees Planner's Raw Thoughts" --> V0[Verifier]
+        V0 -- "Sees Planner & Verifier's Raw Thoughts" --> E0[Executor]
     end
 
     subgraph B1: Isolated Verifier
-        P1[Planner] -- "Extract Claim" --> V1[Verifier]
-        V1 -- "Raw Trace" --> E1[Executor]
+        P1[Planner] -- "Isolated: Only sees extracted claim" --> V1[Verifier]
+        V1 -- "Sees Planner's Raw Thoughts" --> E1[Executor]
     end
 
-    subgraph B2: Isolation Only
-        P2[Planner] -- "Extract Claim" --> V2[Verifier]
-        V2 -- "Verified Claim" --> E2[Executor]
+    subgraph B2: Full Context Isolation
+        P2[Planner] -- "Isolated: Only sees extracted claim" --> V2[Verifier]
+        V2 -- "Isolated: Only sees verified claims" --> E2[Executor]
     end
 
-    subgraph B3: Isolation + Gate
-        P3[Planner] -- "Extract Claim" --> V3{Verification Gate}
-        V3 -- "Rejected" --> H[Halt Search]
-        V3 -- "Verified Claim" --> E3[Executor]
+    subgraph B3: Strict Isolation + Verification Gate
+        P3[Planner] -- "Isolated: Only sees extracted claim" --> V3{Verification Gate}
+        V3 -- "Claim Rejected" --> H[Halt RAG Pipeline]
+        V3 -- "Isolated: Only sees verified claims" --> E3[Executor]
     end
 ```
 
@@ -62,7 +62,7 @@ graph TD
 
 1. **$B_0$ (Shared Baseline)**: Highly vulnerable. The Verifier and Executor agents read the Planner's full, raw "thought process". If the Planner hallucinates, the downstream agents get infected via context contamination.
 2. **$B_1$ (Isolated Verifier)**: Diagnostic. The Verifier is blinded from the reasoning trace to prevent sycophancy (agreeing with the Planner just because the Planner sounds confident). However, the Executor remains vulnerable to the global context.
-3. **$B_2$ (Isolation Only)**: Structural cut-off. All downstream agents only see structured, extracted claims. The raw reasoning trace is completely purged from the context window.
+3. **$B_2$ (Isolation Only)**: Structural cut-off. All downstream agents only see structured, extracted claims. The raw reasoning trace is completely purged from the context window, so they do not see each other's work.
 4. **$B_3$ (Isolation + Verification Gate)**: The robust architecture. Claims are isolated AND must pass a strict boolean gate. *Crucially, IsoBench proves that $B_3$ only succeeds if it enforces Strict Retrieval Isolation (halting downstream RAG search upon rejection).*
 
 ---
