@@ -88,7 +88,8 @@ graph TD
 ### Prerequisites
 * Python 3.10+
 * `requests` (for local Ollama execution)
-* [Ollama](https://ollama.com/) running `llama3.1` (or your preferred local model).
+* `anthropic` (if using Claude API)
+* A local instance of [Ollama](https://ollama.com/) running `llama3.1` OR an Anthropic API Key for **Claude 3.5 Sonnet**.
 
 ### Quick Start
 
@@ -98,7 +99,20 @@ graph TD
    cd IsoBench
    ```
 
-2. **Run the Benchmark (Local Llama 3.1):**
+2. **Option A: Run with Anthropic API (Claude 3.5 Sonnet)**
+   IsoBench defaults to using Claude via the Anthropic API for maximum reasoning capability.
+   ```bash
+   # On Windows (PowerShell)
+   $env:ANTHROPIC_API_KEY="your-api-key-here"
+   python run_isobench.py
+   
+   # On Linux/Mac
+   export ANTHROPIC_API_KEY="your-api-key-here"
+   python run_isobench.py
+   ```
+
+3. **Option B: Run with Local LLMs (Ollama / Llama 3.1)**
+   You can easily swap out the backend to run entirely locally using Ollama.
    ```bash
    # On Windows (PowerShell)
    $env:AGENT_LLM_BACKEND="ollama"
