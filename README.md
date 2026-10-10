@@ -30,32 +30,35 @@ IsoBench solves this via a **Counterfactual Dataset**:
 
 ---
 
-## 🏗️ The Core Architecture
+## 🏗️ The 4-Arm Architectural Ablation
 
-The architecture below illustrates the two extremes of our ablation study: the highly vulnerable Baseline ($B_0$) versus our robust, strictly isolated Verification Gate ($B_3$).
+IsoBench evaluates identical questions across four distinct agentic paradigms. This ablation study proves exactly where and how errors propagate through an agentic pipeline.
 
 ```mermaid
 graph TD
     subgraph B0: Shared Baseline
-        P0[Planner] --> V0[Verifier]
-        V0 --> E0[Executor]
-        style P0 fill:#ffcccc,stroke:#ff0000
-        style V0 fill:#ffcccc,stroke:#ff0000
-        style E0 fill:#ffcccc,stroke:#ff0000
+        P0[Planner] -- "Raw Trace" --> V0[Verifier]
+        V0 -- "Raw Trace" --> E0[Executor]
     end
 
-    subgraph B3: Isolation + Verification Gate
-        P3[Planner] -- "Extract Claim" --> V3{Strict Verifier Gate}
-        V3 -- "Rejected" --> H[Halt Downstream RAG]
+    subgraph B1: Isolated Verifier
+        P1[Planner] -- "Extract Claim" --> V1[Verifier]
+        V1 -- "Raw Trace" --> E1[Executor]
+    end
+
+    subgraph B2: Isolation Only
+        P2[Planner] -- "Extract Claim" --> V2[Verifier]
+        V2 -- "Verified Claim" --> E2[Executor]
+    end
+
+    subgraph B3: Isolation + Gate
+        P3[Planner] -- "Extract Claim" --> V3{Verification Gate}
+        V3 -- "Rejected" --> H[Halt Search]
         V3 -- "Verified Claim" --> E3[Executor]
-        style P3 fill:#ccffcc,stroke:#00cc00
-        style V3 fill:#ccffcc,stroke:#00cc00
-        style E3 fill:#ccffcc,stroke:#00cc00
     end
 ```
 
 ### Architectural Breakdown ($B_0$ through $B_3$):
-IsoBench evaluates identical questions across four distinct agentic paradigms to prove exactly where errors spread:
 
 1. **$B_0$ (Shared Baseline)**: Highly vulnerable. The Verifier and Executor agents read the Planner's full, raw "thought process". If the Planner hallucinates, the downstream agents get infected via context contamination.
 2. **$B_1$ (Isolated Verifier)**: Diagnostic. The Verifier is blinded from the reasoning trace to prevent sycophancy (agreeing with the Planner just because the Planner sounds confident). However, the Executor remains vulnerable to the global context.
