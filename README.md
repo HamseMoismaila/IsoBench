@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>🛡️ AgentOS / IsoBench</h1>
+  <h1>🛡️ IsoBench</h1>
   <p><strong>A Confound-Free Laboratory Instrument for Evaluating Error Propagation in Multi-Agent RAG Systems</strong></p>
   
   [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://www.python.org/)
@@ -13,7 +13,7 @@
 
 **IsoBench** is a pure, minimal Python evaluation framework designed to empirically test **Error Propagation** and **Context Isolation** in multi-agent Retrieval-Augmented Generation (RAG) architectures. 
 
-It was built specifically to evaluate the **AgentOS** architectural hypothesis: *In compound AI systems, an upstream hallucination guarantees downstream systemic failure unless strict topological isolation and verification gates are enforced.*
+It was built specifically to evaluate compounding hallucinations in compound AI systems, demonstrating that without strict topological isolation, an upstream hallucination guarantees a downstream systemic failure.
 
 By completely avoiding bulky frameworks like LangChain or AutoGen, IsoBench acts as a mathematically pure laboratory instrument.
 
@@ -32,32 +32,54 @@ IsoBench solves this via a **Counterfactual Dataset**:
 
 ## 🏗️ The 4-Arm Architectural Ablation
 
-IsoBench evaluates identical questions across four distinct agentic paradigms:
+IsoBench evaluates identical questions across four distinct agentic paradigms. This ablation study proves exactly where and how errors propagate through an agentic pipeline.
 
 ```mermaid
 graph TD
     subgraph B0: Shared Baseline
-        P0[Planner] --> V0[Verifier]
-        V0 --> E0[Executor]
-        style P0 fill:#ffcccc,stroke:#ff0000
-        style V0 fill:#ffcccc,stroke:#ff0000
-        style E0 fill:#ffcccc,stroke:#ff0000
+        direction TB
+        P0[Planner] -- "Passes Raw Reasoning" --> V0[Verifier]
+        V0 -- "Passes Raw Reasoning" --> E0[Executor]
+        style P0 fill:#ffe6e6,stroke:#ff0000
+        style V0 fill:#ffe6e6,stroke:#ff0000
+        style E0 fill:#ffe6e6,stroke:#ff0000
+    end
+
+    subgraph B1: Isolated Verifier
+        direction TB
+        P1[Planner] -- "Passes Extracted Claim Only" --> V1[Verifier]
+        V1 -- "Passes Raw Reasoning" --> E1[Executor]
+        style P1 fill:#fff5e6,stroke:#ff9900
+        style V1 fill:#e6ffe6,stroke:#00cc00
+        style E1 fill:#ffe6e6,stroke:#ff0000
+    end
+
+    subgraph B2: Isolation Only
+        direction TB
+        P2[Planner] -- "Passes Extracted Claim Only" --> V2[Verifier]
+        V2 -- "Passes Verified Claim Only" --> E2[Executor]
+        style P2 fill:#fff5e6,stroke:#ff9900
+        style V2 fill:#e6ffe6,stroke:#00cc00
+        style E2 fill:#e6ffe6,stroke:#00cc00
     end
 
     subgraph B3: Isolation + Verification Gate
-        P3[Planner] -- "Extract Claim" --> V3{Strict Verifier Gate}
-        V3 -- "Rejected" --> H[Halt Downstream RAG]
-        V3 -- "Verified Claim" --> E3[Executor]
-        style P3 fill:#ccffcc,stroke:#00cc00
+        direction TB
+        P3[Planner] -- "Passes Extracted Claim Only" --> V3{Strict Boolean Gate}
+        V3 -- "Rejected (Halts Retrieval)" --> H[Fail Fast]
+        V3 -- "Verified Claim Only" --> E3[Executor]
+        style P3 fill:#fff5e6,stroke:#ff9900
         style V3 fill:#ccffcc,stroke:#00cc00
         style E3 fill:#ccffcc,stroke:#00cc00
+        style H fill:#333333,stroke:#ffffff,color:#ffffff
     end
 ```
 
-1. **$B_0$ (Shared Baseline)**: The standard approach. All agents see the entire global reasoning history and raw scratchpad. Highly vulnerable to cascading hallucinations.
-2. **$B_1$ (Isolated Verifier)**: A diagnostic architecture where the Verifier is isolated from the reasoning trace to prevent sycophancy, but the Planner remains vulnerable.
-3. **$B_2$ (Isolation Only)**: Planners only see verified, structured claims rather than raw reasoning traces. 
-4. **$B_3$ (Isolation + Verification Gate)**: The robust architecture. Planners only see verified claims, AND claims must pass a strict boolean gate. *Crucially, IsoBench proves that $B_3$ only succeeds if it enforces Strict Retrieval Isolation (halting downstream search upon rejection).*
+### Architectural Breakdown:
+1. **$B_0$ (Shared Baseline)**: Highly vulnerable. The Verifier and Executor agents read the Planner's full, raw "thought process". If the Planner hallucinates, the downstream agents get infected via context contamination.
+2. **$B_1$ (Isolated Verifier)**: Diagnostic. The Verifier is blinded from the reasoning trace to prevent sycophancy (agreeing with the Planner just because the Planner sounds confident). However, the Executor remains vulnerable to the global context.
+3. **$B_2$ (Isolation Only)**: Structural cut-off. All downstream agents only see structured, extracted claims. The raw reasoning trace is completely purged from the context window.
+4. **$B_3$ (Isolation + Verification Gate)**: The robust architecture. Claims are isolated AND must pass a strict boolean gate. *Crucially, IsoBench proves that $B_3$ only succeeds if it enforces Strict Retrieval Isolation (halting downstream RAG search upon rejection).*
 
 ---
 
@@ -72,8 +94,8 @@ graph TD
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/HamseMoismaila/HamzeOS.git
-   cd HamzeOS/agent_os
+   git clone https://github.com/HamseMoismaila/IsoBench.git
+   cd IsoBench
    ```
 
 2. **Run the Benchmark (Local Llama 3.1):**
@@ -88,9 +110,3 @@ graph TD
 
 ### Output Interpretation
 The script outputs the exact reasoning trace, the verifier's extraction, and the Executor's Final Answer for all 4 architectures under both `clean` and `injected` conditions. Calculate the system's **Error Propagation Rate (EPR)** by observing the Final Answer under the injected conditions.
-
----
-
-<div align="center">
-  <i>Developed for the KAIST AgentOS Research Paper</i>
-</div>
