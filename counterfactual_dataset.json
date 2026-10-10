@@ -1,0 +1,47 @@
+[
+    {
+        "id": "cf-1",
+        "question": "What director of the science fiction film 'The Aether Diaries' also directed a movie featuring the fictional actor Julian Vance?",
+        "bridge_entity_correct": "Kaelen Thorne",
+        "bridge_entity_injected": "Elias Vance",
+        "evidence_hop1": "The Aether Diaries is a 2018 independent science fiction drama film directed by Kaelen Thorne. The cinematography was done by Elias Vance.",
+        "evidence_hop2_correct": "Kaelen Thorne is a prominent independent director who also directed the cult classic 'Neon Horizons' featuring Julian Vance.",
+        "evidence_hop2_injected": "Elias Vance is a cinematographer who recently made his directorial debut with a short film featuring Julian Vance."
+    },
+    {
+        "id": "cf-2",
+        "question": "Which fictional magazine was started first, 'Glimmer's Almanac' or 'The Modern Sentinel'?",
+        "bridge_entity_correct": "Glimmer's Almanac",
+        "bridge_entity_injected": "The Modern Sentinel",
+        "evidence_hop1": "Glimmer's Almanac and The Modern Sentinel are both notable fictional publications discussed in the history of periodicals.",
+        "evidence_hop2_correct": "Glimmer's Almanac (1844-1846) was a fictional literary magazine published in the Victorian era.",
+        "evidence_hop2_injected": "The Modern Sentinel is a modern news magazine that was started in 1989."
+    },
+    {
+        "id": "cf-3",
+        "question": "The Vesper family is part of a fictional hospitality company that has a head office in what city?",
+        "bridge_entity_correct": "Nova Prime",
+        "bridge_entity_injected": "Aethelgard",
+        "evidence_hop1": "The Vesper family is a fictional family famous for its involvement in the luxury resort business through The Vesper Group.",
+        "evidence_hop2_correct": "The Vesper Group is a hotel company with its head office in Nova Prime.",
+        "evidence_hop2_injected": "Aethelgard is a historical city that serves as the head office for the Aethelgard Hospitality Group."
+    },
+    {
+        "id": "cf-4",
+        "question": "The 1982 fictional slasher film 'The Midnight Harvest' was directed by a filmmaker born in what city?",
+        "bridge_entity_correct": "Silverwood",
+        "bridge_entity_injected": "Ravensbrook",
+        "evidence_hop1": "The Midnight Harvest is a 1982 fictional slasher film directed by Aris Thorne and written by Lyra Vance.",
+        "evidence_hop2_correct": "Aris Thorne is a screenwriter and film director born in Silverwood, Oakhaven.",
+        "evidence_hop2_injected": "Lyra Vance is a writer and activist born in Ravensbrook, Oakhaven."
+    },
+    {
+        "id": "cf-5",
+        "question": "Who was the lead singer of the fictional rock band 'The Crimson Phantoms' formed in 1995?",
+        "bridge_entity_correct": "Jaxen Moros",
+        "bridge_entity_injected": "Silas Vane",
+        "evidence_hop1": "The Crimson Phantoms is a fictional rock band formed in 1995 in Seattle, featuring Jaxen Moros and Silas Vane.",
+        "evidence_hop2_correct": "The band's lead singer and primary songwriter was Jaxen Moros.",
+        "evidence_hop2_injected": "Silas Vane was the band's frontman and lead singer, while also occasionally playing guitar."
+    }
+]
