@@ -23,10 +23,10 @@ By completely avoiding bulky frameworks like LangChain or AutoGen, IsoBench acts
 
 Standard datasets (like HotpotQA) are highly compromised. Modern LLMs have memorized Wikipedia, allowing them to bypass corrupted RAG context using pre-trained weights (the "cheat sheet" effect). 
 
-IsoBench solves this via a **Counterfactual Dataset**:
-* **Fictional Entities**: Questions use entirely fictional names (e.g., *The Aether Diaries*).
-* **Parametric Blinding**: The LLM possesses exactly zero prior knowledge, guaranteeing 100% reliance on the provided context.
-* **Controlled Injections**: The dataset splits evidence into `hop1`, `hop2_correct`, and `hop2_injected` to perfectly simulate a multi-hop RAG retrieval failure.
+IsoBench solves this via a **Counterfactual Dataset ($N = 75$)**:
+* **Fictional Entities**: Questions use entirely synthetic counterfactual names across 7 domains (e.g., *The Aether Diaries*, *Kaelen Thorne*, *The Modern Sentinel*).
+* **Parametric Blinding**: The LLM possesses exactly zero prior knowledge ($P(\text{knowledge} \mid \text{pretraining}) = 0$), guaranteeing 100% reliance on the provided context.
+* **Controlled Two-Hop Injections**: Each instance splits evidence into `evidence_hop1` ($E_1$), `evidence_hop2_correct` ($E_{2,\text{correct}}$), and `evidence_hop2_injected` ($E_{2,\text{injected}}$), separating the Hop-1 bridge entities (`bridge_entity_correct`, `bridge_entity_injected`) from the Hop-2 target answers (`target_answer_correct`, `target_answer_injected`).
 
 ---
 
@@ -140,5 +140,8 @@ graph TD
    AGENT_LLM_BACKEND=ollama python run_isobench.py
    ```
 
-### Output Interpretation
-The script outputs the exact reasoning trace, the verifier's extraction, and the Executor's Final Answer for all 4 architectures under both `clean` and `injected` conditions. Calculate the system's **Error Propagation Rate (EPR)** by observing the Final Answer under the injected conditions.
+### Output & Automated Statistical Analysis
+`run_isobench.py` evaluates all 4 architectures ($B_0, B_1, B_2, B_3$) under both `clean` and `injected` conditions (pass `--limit 5` for a quick 5-question test or omit `--limit` to run all $N = 75$ questions) and automatically computes and saves to `results_summary.json`:
+* **Primary Metric**: Final Error Propagation Rate ($EPR_{\text{final}}$)
+* **Secondary Metrics**: Intermediate Error Propagation Rate ($EPR_{\text{intermediate}}$), Final Answer Accuracy ($FAA$), Recovery Rate ($RR$), Verifier False Acceptance Rate ($FAR$), and Computational Overhead (model calls, tokens, latency)
+* **Hypothesis Tests ($H_1, H_2, H_3$)**: Exact paired **McNemar's test** on discordant pairs with **Holm-Bonferroni** step-down correction at $\alpha = 0.05$.
