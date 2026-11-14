@@ -78,7 +78,11 @@ def _estimate_tokens(text: str) -> int:
     return max(1, len(text.split())) if text else 0
 
 
-def query_llm_with_stats(prompt: str, system_prompt: str = "") -> Tuple[str, int, int, float]:
+def query_llm_with_stats(
+    prompt: str,
+    system_prompt: str = "",
+    max_tokens: int = 128,
+) -> Tuple[str, int, int, float]:
     """Queries the configured LLM backend at temperature=0.0 and returns (text, in_tok, out_tok, latency_s)."""
     t0 = time.perf_counter()
     if BACKEND == "ollama":
@@ -91,9 +95,10 @@ def query_llm_with_stats(prompt: str, system_prompt: str = "") -> Tuple[str, int
                 "options": {
                     "temperature": 0.0,
                     "seed": RANDOM_SEED,
+                    "num_predict": max_tokens,
                 },
             }
-            response = requests.post(OLLAMA_URL, json=payload, timeout=90)
+            response = requests.post(OLLAMA_URL, json=payload, timeout=120)
             response.raise_for_status()
             data = response.json()
             text = data.get("response", "").strip()
@@ -101,7 +106,7 @@ def query_llm_with_stats(prompt: str, system_prompt: str = "") -> Tuple[str, int
             out_tok = int(data.get("eval_count") or _estimate_tokens(text))
             return text, in_tok, out_tok, time.perf_counter() - t0
         except Exception as e:
-            print(f"[!] Ollama Request Failed ({OLLAMA_MODEL}): {e}")
+            print(f"[!] Ollama Request Failed ({OLLAMA_MODEL}): {e}", flush=True)
             return "", 0, 0, time.perf_counter() - t0
     else:
         try:
@@ -110,7 +115,7 @@ def query_llm_with_stats(prompt: str, system_prompt: str = "") -> Tuple[str, int
             client = anthropic.Anthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
             response = client.messages.create(
                 model=ANTHROPIC_MODEL,
-                max_tokens=1024,
+                max_tokens=max_tokens,
                 temperature=0.0,
                 system=system_prompt,
                 messages=[{"role": "user", "content": prompt}],
@@ -121,7 +126,7 @@ def query_llm_with_stats(prompt: str, system_prompt: str = "") -> Tuple[str, int
             out_tok = int(getattr(usage, "output_tokens", 0) or _estimate_tokens(text))
             return text, in_tok, out_tok, time.perf_counter() - t0
         except Exception as e:
-            print(f"[!] Anthropic Request Failed: {e}")
+            print(f"[!] Anthropic Request Failed: {e}", flush=True)
             return "", 0, 0, time.perf_counter() - t0
 
 
@@ -259,11 +264,13 @@ def score_pipeline_state(state: PipelineState) -> None:
 def run_planner(state: PipelineState, context: str) -> Tuple[str, str]:
     system_prompt = (
         "You are an analytical reasoning agent. Read the provided context and history to answer the question.\n"
-        "You must output exactly two XML blocks:\n"
-        "<reasoning>\nYour step-by-step logic here.\n</reasoning>\n"
+        "You must output exactly two XML blocks (keep <reasoning> concise, 1-2 sentences maximum):\n"
+        "<reasoning>\nYour concise 1-2 sentence logic here.\n</reasoning>\n"
         "<claim>\nA single, atomic factual claim representing the conclusion of this reasoning step.\n</claim>"
     )
-    raw_response, in_tok, out_tok, dt = query_llm_with_stats(prompt=context, system_prompt=system_prompt)
+    raw_response, in_tok, out_tok, dt = query_llm_with_stats(
+        prompt=context, system_prompt=system_prompt, max_tokens=160
+    )
     state.model_calls += 1
     state.input_tokens += in_tok
     state.output_tokens += out_tok
@@ -282,7 +289,9 @@ def run_verifier(state: PipelineState, context: str, claim: str) -> str:
         "Output ONLY ONE of the following words: SUPPORTED, CONTRADICTED, or INSUFFICIENT."
     )
     prompt = f"{context}\n\nTarget Claim to Verify: {claim}\n\nOutput your verdict:"
-    raw_response, in_tok, out_tok, dt = query_llm_with_stats(prompt=prompt, system_prompt=system_prompt)
+    raw_response, in_tok, out_tok, dt = query_llm_with_stats(
+        prompt=prompt, system_prompt=system_prompt, max_tokens=10
+    )
     state.model_calls += 1
     state.input_tokens += in_tok
     state.output_tokens += out_tok
@@ -294,9 +303,11 @@ def run_verifier(state: PipelineState, context: str, claim: str) -> str:
 def run_executor(state: PipelineState, context: str) -> str:
     system_prompt = (
         "You are the final answering agent. Read the provided context and output a concise, "
-        "direct answer to the question."
+        "direct 1-sentence answer to the question."
     )
-    raw_response, in_tok, out_tok, dt = query_llm_with_stats(prompt=context, system_prompt=system_prompt)
+    raw_response, in_tok, out_tok, dt = query_llm_with_stats(
+        prompt=context, system_prompt=system_prompt, max_tokens=32
+    )
     state.model_calls += 1
     state.input_tokens += in_tok
     state.output_tokens += out_tok
@@ -325,7 +336,7 @@ def build_context(state: PipelineState, role: str) -> str:
         current_evidence = state.question.evidence_hop1
     else:
         if state.condition == "clean":
-            current_evidence = f"{state.question.evidence_hop1}\n{state.question.evidence_hop2_correct}"
+            current_evidence = state.question.evidence_hop2_correct
         else:
             # Injected condition: check if B3 gate rejected Cycle 1 claim (UNVERIFIED_FALLBACK)
             b3_halted_corrupted_hop2 = (
@@ -334,10 +345,11 @@ def build_context(state: PipelineState, role: str) -> str:
                 and state.cycles[0].verifier_result != "SUPPORTED"
             )
             if b3_halted_corrupted_hop2:
+                # B3 fallback re-queries clean Hop-1 + Hop-2 evidence
                 current_evidence = f"{state.question.evidence_hop1}\n{state.question.evidence_hop2_correct}"
             else:
+                # Hop-2 agents receive Hop-2 retrieval pool without re-reading Hop-1 evidence
                 current_evidence = (
-                    f"{state.question.evidence_hop1}\n"
                     f"{state.question.evidence_hop2_injected}\n"
                     f"{state.question.evidence_hop2_correct}"
                 )
@@ -408,8 +420,12 @@ def build_context(state: PipelineState, role: str) -> str:
     return context
 
 # ---------------------------------------------------------------------------
-# PIPELINE ORCHESTRATION
+# PIPELINE ORCHESTRATION (WITH FROZEN CYCLE-1 CACHE PER SECTION 4.3)
 # ---------------------------------------------------------------------------
+
+_CYCLE1_PLANNER_CACHE: Dict[str, Tuple[str, str, int, int, float]] = {}
+_CYCLE1_ISO_VERIFIER_CACHE: Dict[Tuple[str, str], Tuple[str, int, int, float]] = {}
+
 
 def run_pipeline(
     question: CounterfactualQuestion,
@@ -430,25 +446,57 @@ def run_pipeline(
     )
 
     if verbose:
-        print(f"--- Starting {architecture} Pipeline (Condition: {condition}) ---")
+        print(f"--- Starting {architecture} Pipeline (Condition: {condition}) ---", flush=True)
 
-    # 1. Cycle 1 (Hop 1)
+    # 1. Cycle 1 (Hop 1) — Frozen across B0..B3 per Section 4.3 so all arms start from identical upstream state
     if verbose:
-        print("Running Cycle 1: Planner...")
-    p1_context = build_context(state, "Planner")
-    p1_reasoning, p1_claim = run_planner(state, p1_context)
+        print("Running Cycle 1: Planner...", flush=True)
+    if question.id in _CYCLE1_PLANNER_CACHE:
+        base_r, base_c, in_tok, out_tok, dt = _CYCLE1_PLANNER_CACHE[question.id]
+        state.model_calls += 1
+        state.input_tokens += in_tok
+        state.output_tokens += out_tok
+        state.latency_seconds += dt
+        p1_reasoning, p1_claim = base_r, base_c
+    else:
+        # Use clean Hop-1 context so base generation is identical across all arms
+        clean_hop1_prompt = f"Question: {question.question}\nEvidence Corpus:\n{question.evidence_hop1}\n"
+        p1_reasoning, p1_claim = run_planner(state, clean_hop1_prompt)
+        _CYCLE1_PLANNER_CACHE[question.id] = (
+            p1_reasoning,
+            p1_claim,
+            state.input_tokens,
+            state.output_tokens,
+            state.latency_seconds,
+        )
 
     # Active Bridge-Entity Substitution Protocol (Section 4.3)
     if condition == "injected":
         p1_reasoning, p1_claim = apply_bridge_entity_mutation(question, p1_reasoning, p1_claim)
 
     if verbose:
-        print(f"Running Cycle 1: Verifier... (Verifying: {p1_claim})")
+        print(f"Running Cycle 1: Verifier... (Verifying: {p1_claim})", flush=True)
     v1_context = build_context(state, "Verifier")
-    # In B0, also expose the current Cycle 1 reasoning narrative to the shared-context Verifier
     if architecture == "B0":
         v1_context += f"\nCycle 1 Planner Reasoning:\n{p1_reasoning}\n"
-    v1_result = run_verifier(state, v1_context, p1_claim)
+        v1_result = run_verifier(state, v1_context, p1_claim)
+    else:
+        iso_key = (question.id, condition)
+        if iso_key in _CYCLE1_ISO_VERIFIER_CACHE:
+            v1_result, v_in, v_out, v_dt = _CYCLE1_ISO_VERIFIER_CACHE[iso_key]
+            state.model_calls += 1
+            state.input_tokens += v_in
+            state.output_tokens += v_out
+            state.latency_seconds += v_dt
+        else:
+            prev_in, prev_out, prev_dt = state.input_tokens, state.output_tokens, state.latency_seconds
+            v1_result = run_verifier(state, v1_context, p1_claim)
+            _CYCLE1_ISO_VERIFIER_CACHE[iso_key] = (
+                v1_result,
+                state.input_tokens - prev_in,
+                state.output_tokens - prev_out,
+                state.latency_seconds - prev_dt,
+            )
 
     state.cycles.append(CycleState(1, p1_reasoning, p1_claim, v1_result))
 
@@ -459,12 +507,12 @@ def run_pipeline(
 
     # 2. Cycle 2 (Hop 2)
     if verbose:
-        print("Running Cycle 2: Planner...")
+        print("Running Cycle 2: Planner...", flush=True)
     p2_context = build_context(state, "Planner")
     p2_reasoning, p2_claim = run_planner(state, p2_context)
 
     if verbose:
-        print(f"Running Cycle 2: Verifier... (Verifying: {p2_claim})")
+        print(f"Running Cycle 2: Verifier... (Verifying: {p2_claim})", flush=True)
     v2_context = build_context(state, "Verifier")
     if architecture == "B0":
         v2_context += f"\nCycle 2 Planner Reasoning:\n{p2_reasoning}\n"
@@ -479,7 +527,7 @@ def run_pipeline(
 
     # 3. Executor
     if verbose:
-        print("Running Executor...")
+        print("Running Executor...", flush=True)
     exec_context = build_context(state, "Executor")
     final_answer = run_executor(state, exec_context)
     state.final_answer = final_answer
@@ -489,7 +537,8 @@ def run_pipeline(
     if verbose:
         print(
             f"Final Answer: {final_answer} | "
-            f"EPR_final={state.epr_final}, FAA={state.faa}, FAR={state.verifier_far}\n"
+            f"EPR_final={state.epr_final}, FAA={state.faa}, FAR={state.verifier_far}\n",
+            flush=True,
         )
     return state
 

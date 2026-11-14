@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use IsoBench or the Counterfactual Dataset in your research, please cite it using the metadata below."
+title: "IsoBench: A Controlled Evaluation Harness for Context Isolation and Factual Error Propagation in Multi-Agent LLM Systems"
+type: software
+authors:
+  - family-names: "Ismail"
+    given-names: "Hamse Mohamed"
+    affiliation: "Nilai University"
+year: 2026
+license: MIT
+repository-code: "https://github.com/HamseMoismaila/IsoBench"
+keywords:
+  - multi-agent-systems
+  - hallucination-propagation
+  - context-isolation
+  - retrieval-augmented-generation
+  - counterfactual-benchmark
